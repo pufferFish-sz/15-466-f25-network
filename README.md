@@ -1,20 +1,20 @@
-# (TODO: your game's title)
+# Pancake Flip
 
-Author: (TODO: your name)
+Author: Shangyi Zhu
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: This is a 2-player competitive game in a fixed camera 3D scene where the person that flips the most number of perfect pancakes wins. 
 
 Networking: (TODO: How does your game implement client/server multiplayer? What messages are transmitted? Where in the code?)
 
 Screen Shot:
 
-![Screen Shot](screenshot.png)
+![Screen Shot](PancakeFlip.png)
 
 How To Play:
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+Each person will have to flip the pancakes in a pan in front of them within 1 second of hearing "ding!" to get the perfect browned side of their pancake. 
+Each round has 5 pancakes, and whoever gets the most number of perfect pancakes wins.
 
-Sources: (TODO: list a source URL for any assets you did not create yourself. Make sure you have a license for the asset.)
 
 This game was built with [NEST](NEST.md).
 

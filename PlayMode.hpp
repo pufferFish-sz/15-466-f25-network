@@ -1,5 +1,5 @@
 #include "Mode.hpp"
-
+#include "Scene.hpp"
 #include "Connection.hpp"
 #include "Game.hpp"
 
@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <deque>
+
 
 struct PlayMode : Mode {
 	PlayMode(Client &client);
@@ -16,6 +17,15 @@ struct PlayMode : Mode {
 	virtual bool handle_event(SDL_Event const &, glm::uvec2 const &window_size) override;
 	virtual void update(float elapsed) override;
 	virtual void draw(glm::uvec2 const &drawable_size) override;
+
+	//---- mesh references ----
+	Scene scene;
+	Scene::Camera* camera = nullptr;
+
+	Scene::Transform* pan_1 = nullptr;
+	Scene::Transform* pan_2 = nullptr;
+	Scene::Transform* pancake_1 = nullptr;
+	Scene::Transform* pancake_2 = nullptr;
 
 	//----- game state -----
 
