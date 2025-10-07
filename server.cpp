@@ -69,9 +69,14 @@ int main(int argc, char **argv) {
 
 			server.poll([&](Connection *c, Connection::Event evt){
 				if (evt == Connection::OnOpen) {
-					//client connected:
+					//check if server is full:
+					if (connection_to_player.size() >= 2) {
+						std::cerr << "Server is full. Closing new connection\n";
+						c->close();
+						return;
+					}
 
-					//create some player info for them:
+					//accept player:
 					connection_to_player.emplace(c, game.spawn_player());
 
 				} else if (evt == Connection::OnClose) {

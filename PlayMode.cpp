@@ -16,7 +16,28 @@
 #include "Mesh.hpp"
 #include "Load.hpp"
 #include <iostream>
+#include <iomanip>
 
+//static void print_transform_info(
+//	const std::string& name,
+//	const glm::vec3& pos,
+//	const glm::quat& rot
+//) {
+//	std::cout << std::fixed << std::setprecision(3);
+//	std::cout << name << " base position: ("
+//		<< pos.x << ", " << pos.y << ", " << pos.z << ")\n";
+//
+//	std::cout << name << " base rotation (quat): [w="
+//		<< rot.w << ", x=" << rot.x
+//		<< ", y=" << rot.y << ", z=" << rot.z << "]\n";
+//
+//	// Optional: also print Euler angles in degrees for readability
+//	glm::vec3 euler = glm::degrees(glm::eulerAngles(rot));
+//	std::cout << name << " base rotation (Euler XYZ deg): ("
+//		<< euler.x << ", " << euler.y << ", " << euler.z << ")\n";
+//}
+
+// The scene setup code template is taken from game 3
 GLuint pancake_meshes_for_lit_color_texture_program = 0;
 Load< MeshBuffer > pancake_meshes(LoadTagDefault, []() -> MeshBuffer const* {
 	MeshBuffer const* ret = new MeshBuffer(data_path("pancake.pnct"));
@@ -44,6 +65,16 @@ Load< Scene > pancake_scene(LoadTagDefault, []() -> Scene const* {
 
 PlayMode::PlayMode(Client &client_) : client(client_) {
 	scene = *pancake_scene;
+	for (auto& cam : scene.cameras) {
+		if (!cam.transform) continue;
+		const std::string& n = cam.transform->name;
+		if (n == "CameraLeft") camera_left = &cam;
+		if (n == "CameraRight") camera_right = &cam;
+	}
+	if (!camera_left || !camera_right) {
+		throw std::runtime_error("Need two cameras in the scene.");
+	}
+
 	//get pointers to leg for convenience:
 	for (auto& transform : scene.transforms) {
 		//std::cout << transform.name << std::endl;
@@ -56,10 +87,10 @@ PlayMode::PlayMode(Client &client_) : client(client_) {
 	if (pan_2 == nullptr) throw std::runtime_error("pan 2 foot not found.");
 	if (pancake_1 == nullptr) throw std::runtime_error("pancake 1 not found.");
 	if (pancake_2 == nullptr) throw std::runtime_error("pancake 2 not found.");
+	
+	/*print_transform_info("Pancake1", pancake_1->position, pancake_1->rotation);
+	print_transform_info("Pancake2", pancake_1->position, pancake_2->rotation);*/
 
-	//get pointer to camera for convenience:
-	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
-	camera = &scene.cameras.front();
 }
 
 PlayMode::~PlayMode() {
@@ -70,7 +101,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	if (evt.type == SDL_EVENT_KEY_DOWN) {
 		if (evt.key.repeat) {
 			//ignore repeats
-		} else if (evt.key.key == SDLK_A) {
+		} /*else if (evt.key.key == SDLK_A) {
 			controls.left.downs += 1;
 			controls.left.pressed = true;
 			return true;
@@ -86,13 +117,13 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			controls.down.downs += 1;
 			controls.down.pressed = true;
 			return true;
-		} else if (evt.key.key == SDLK_SPACE) {
+		}*/ else if (evt.key.key == SDLK_SPACE) {
 			controls.jump.downs += 1;
 			controls.jump.pressed = true;
 			return true;
 		}
 	} else if (evt.type == SDL_EVENT_KEY_UP) {
-		if (evt.key.key == SDLK_A) {
+	/*	if (evt.key.key == SDLK_A) {
 			controls.left.pressed = false;
 			return true;
 		} else if (evt.key.key == SDLK_D) {
@@ -104,7 +135,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		} else if (evt.key.key == SDLK_S) {
 			controls.down.pressed = false;
 			return true;
-		} else if (evt.key.key == SDLK_SPACE) {
+		} else*/ if (evt.key.key == SDLK_SPACE) {
 			controls.jump.pressed = false;
 			return true;
 		}
@@ -119,10 +150,6 @@ void PlayMode::update(float elapsed) {
 	controls.send_controls_message(&client.connection);
 
 	//reset button press counters:
-	controls.left.downs = 0;
-	controls.right.downs = 0;
-	controls.up.downs = 0;
-	controls.down.downs = 0;
 	controls.jump.downs = 0;
 
 	//send/receive data:
@@ -139,6 +166,7 @@ void PlayMode::update(float elapsed) {
 				do {
 					handled_message = false;
 					if (game.recv_state_message(c)) handled_message = true;
+					
 				} while (handled_message);
 			} catch (std::exception const &e) {
 				std::cerr << "[" << c->socket << "] malformed message from server: " << e.what() << std::endl;
@@ -147,89 +175,69 @@ void PlayMode::update(float elapsed) {
 			}
 		}
 	}, 0.0);
+
+	// choose camera depending on the player
+	if (!camera_chosen && !game.players.empty()) {
+		const Player& curr_player = game.players.front();
+		
+		if (curr_player.side == Player::Side::Left) {
+			camera = camera_left;
+		}
+		else {
+			camera = camera_right;
+		}
+
+		camera_chosen = (camera != nullptr);
+	}
+
+	if (pan_1 && pan_2 && pancake_1 && pancake_2) {
+		const GameState& s = game.last_state;
+
+		if (s.for_left_side) {
+			pan_1->rotation = s.pan1_rot;
+			pancake_1->position = s.pancake1_pos;
+			pancake_1->rotation = s.pancake1_rot;
+		}
+		if (s.for_right_side) {
+			pan_2->rotation = s.pan2_rot;
+			pancake_2->position = s.pancake2_pos;
+			pancake_2->rotation = s.pancake2_rot;
+
+			static const glm::quat R180Y = glm::angleAxis(glm::pi<float>(), glm::vec3(0, 0, 1));
+			pan_2->rotation = glm::normalize(R180Y * pan_2->rotation);
+			pancake_2->rotation = glm::normalize(R180Y * pancake_2->rotation);
+		}
+	}
+
 }
 
-//void PlayMode::draw(glm::uvec2 const &drawable_size) {
-//
-//	static std::array< glm::vec2, 16 > const circle = [](){
-//		std::array< glm::vec2, 16 > ret;
-//		for (uint32_t a = 0; a < ret.size(); ++a) {
-//			float ang = a / float(ret.size()) * 2.0f * float(M_PI);
-//			ret[a] = glm::vec2(std::cos(ang), std::sin(ang));
-//		}
-//		return ret;
-//	}();
-//
-//	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-//	glClear(GL_COLOR_BUFFER_BIT);
-//	glDisable(GL_DEPTH_TEST);
-//	
-//	//figure out view transform to center the arena:
-//	float aspect = float(drawable_size.x) / float(drawable_size.y);
-//	float scale = std::min(
-//		2.0f * aspect / (Game::ArenaMax.x - Game::ArenaMin.x + 2.0f * Game::PlayerRadius),
-//		2.0f / (Game::ArenaMax.y - Game::ArenaMin.y + 2.0f * Game::PlayerRadius)
-//	);
-//	glm::vec2 offset = -0.5f * (Game::ArenaMax + Game::ArenaMin);
-//
-//	glm::mat4 world_to_clip = glm::mat4(
-//		scale / aspect, 0.0f, 0.0f, offset.x,
-//		0.0f, scale, 0.0f, offset.y,
-//		0.0f, 0.0f, 1.0f, 0.0f,
-//		0.0f, 0.0f, 0.0f, 1.0f
-//	);
-//
-//	{
-//		DrawLines lines(world_to_clip);
-//
-//		//helper:
-//		auto draw_text = [&](glm::vec2 const &at, std::string const &text, float H) {
-//			lines.draw_text(text,
-//				glm::vec3(at.x, at.y, 0.0),
-//				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-//				glm::u8vec4(0x00, 0x00, 0x00, 0x00));
-//			float ofs = (1.0f / scale) / drawable_size.y;
-//			lines.draw_text(text,
-//				glm::vec3(at.x + ofs, at.y + ofs, 0.0),
-//				glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-//				glm::u8vec4(0xff, 0xff, 0xff, 0x00));
-//		};
-//
-//		lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMin.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-//		lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMax.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-//		lines.draw(glm::vec3(Game::ArenaMin.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMin.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-//		lines.draw(glm::vec3(Game::ArenaMax.x, Game::ArenaMin.y, 0.0f), glm::vec3(Game::ArenaMax.x, Game::ArenaMax.y, 0.0f), glm::u8vec4(0xff, 0x00, 0xff, 0xff));
-//
-//		for (auto const &player : game.players) {
-//			glm::u8vec4 col = glm::u8vec4(player.color.x*255, player.color.y*255, player.color.z*255, 0xff);
-//			if (&player == &game.players.front()) {
-//				//mark current player (which server sends first):
-//				lines.draw(
-//					glm::vec3(player.position + Game::PlayerRadius * glm::vec2(-0.5f,-0.5f), 0.0f),
-//					glm::vec3(player.position + Game::PlayerRadius * glm::vec2( 0.5f, 0.5f), 0.0f),
-//					col
-//				);
-//				lines.draw(
-//					glm::vec3(player.position + Game::PlayerRadius * glm::vec2(-0.5f, 0.5f), 0.0f),
-//					glm::vec3(player.position + Game::PlayerRadius * glm::vec2( 0.5f,-0.5f), 0.0f),
-//					col
-//				);
-//			}
-//			for (uint32_t a = 0; a < circle.size(); ++a) {
-//				lines.draw(
-//					glm::vec3(player.position + Game::PlayerRadius * circle[a], 0.0f),
-//					glm::vec3(player.position + Game::PlayerRadius * circle[(a+1)%circle.size()], 0.0f),
-//					col
-//				);
-//			}
-//
-//			draw_text(player.position + glm::vec2(0.0f, -0.1f + Game::PlayerRadius), player.name, 0.09f);
-//		}
-//	}
-//	GL_ERRORS();
-//}
-
 void PlayMode::draw(glm::uvec2 const& drawable_size) {
+	float aspect = float(drawable_size.x) / float(drawable_size.y);
+	DrawLines lines(glm::mat4(
+		1.0f / aspect, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f
+	)); 
+
+	static std::array< glm::vec2, 16 > const circle = [](){
+		std::array< glm::vec2, 16 > ret;
+		for (uint32_t a = 0; a < ret.size(); ++a) {
+			float ang = a / float(ret.size()) * 2.0f * float(M_PI);
+			ret[a] = glm::vec2(std::cos(ang), std::sin(ang));
+		}
+		return ret;
+	}();
+
+	auto draw_dot = [&](glm::vec2 center, float radius, glm::u8vec4 color) {
+		for (uint32_t a = 0; a < circle.size(); ++a) {
+			glm::vec2 p0 = center + radius * circle[a];
+			glm::vec2 p1 = center + radius * circle[(a + 1) % circle.size()];
+			lines.draw(glm::vec3(p0, 0.0f), glm::vec3(p1, 0.0f), color);
+		}
+		};
+
+
 	//update camera aspect ratio for drawable:
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
 
@@ -245,12 +253,6 @@ void PlayMode::draw(glm::uvec2 const& drawable_size) {
 	glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(glm::vec3(1.0f, 1.0f, 0.95f)));
 	glUseProgram(0);
 
-	//glUseProgram(lit_color_texture_program->program);
-	//glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, 1); // directional
-	//glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(cam_forward));
-	//glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(glm::vec3(2.0f))); // a bit brighter
-	//glUseProgram(0);
-
 	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	glClearDepth(1.0f); //1.0 is actually the default value to clear the depth buffer to, but FYI you can change it.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -262,26 +264,73 @@ void PlayMode::draw(glm::uvec2 const& drawable_size) {
 
 	{ //use DrawLines to overlay some text:
 		glDisable(GL_DEPTH_TEST);
-		float aspect = float(drawable_size.x) / float(drawable_size.y);
-		DrawLines lines(glm::mat4(
+		//float aspect = float(drawable_size.x) / float(drawable_size.y);
+		/*DrawLines lines(glm::mat4(
 			1.0f / aspect, 0.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f, 0.0f,
 			0.0f, 0.0f, 1.0f, 0.0f,
 			0.0f, 0.0f, 0.0f, 1.0f
-		));
+		));*/
 
-		const char* text = "Pancake Game";
+		// --- title ---
+		constexpr float H = 0.09f; // title text height
+		glm::vec3 title_origin(-aspect + 0.1f * H, -1.0f + 0.1f * H, 0.0f);
+		glm::vec3 x_dir(H, 0.0f, 0.0f);
+		glm::vec3 y_dir(0.0f, H, 0.0f);
 
-		constexpr float H = 0.09f;
-		lines.draw_text(text,
-			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
+		const char* title = "Pancake Flip";
 		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text(text,
-			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + +0.1f * H + ofs, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+		lines.draw_text(title, title_origin, x_dir, y_dir, glm::u8vec4(0x00, 0x00, 0x00, 0x00));
+		lines.draw_text(title, title_origin + glm::vec3(ofs, ofs, 0.0f), x_dir, y_dir,
 			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+
+		// place UI stack above the title
+		glm::vec2 ui_anchor = glm::vec2(title_origin) + glm::vec2(0.0f, 1.6f * H);
+
+		// layout constants
+		const float char_advance = 0.6f * H;
+		const float label_dot_gap = 0.4f * H;
+		const float row_gap = 1.2f * H; 
+		const float r = 0.35f * H;   // dot radius
+
+		// connectivity flags
+		bool left_connected = false, right_connected = false;
+		for (auto const& p : game.players) {
+			if (p.side == Player::Side::Left)  left_connected = true;
+			if (p.side == Player::Side::Right) right_connected = true;
+		}
+
+		glm::u8vec4 blue = { 64, 170, 255, 255 };
+		glm::u8vec4 pink = { 255, 128, 200, 255 };
+		glm::u8vec4 gray = { 120, 120, 120, 255 };
+
+		// tiny label helper (shadowed text)
+		auto draw_label = [&](glm::vec2 at, std::string const& text) {
+			constexpr float LH = 0.08f;
+			lines.draw_text(text, glm::vec3(at.x, at.y, 0),
+				glm::vec3(LH, 0, 0), glm::vec3(0, LH, 0), glm::u8vec4(0, 0, 0, 0));
+			float lofs = 2.0f / drawable_size.y;
+			lines.draw_text(text, glm::vec3(at.x + lofs, at.y + lofs, 0),
+				glm::vec3(LH, 0, 0), glm::vec3(0, LH, 0), glm::u8vec4(255, 255, 255, 0));
+			};
+
+		// row 1 (P1)
+		std::string t1 = "P1";
+		glm::vec2 L1 = ui_anchor;                                
+		float     W1 = char_advance * float(t1.size());            
+		glm::vec2 C1 = glm::vec2(L1.x + W1 + label_dot_gap, L1.y + r); 
+
+		draw_label(L1, t1);
+		draw_dot(C1, r, left_connected ? blue : gray);
+
+		// row 2 (P2)
+		std::string t2 = "P2";
+		glm::vec2 L2 = ui_anchor + glm::vec2(0.0f, row_gap);
+		float     W2 = char_advance * float(t2.size());
+		glm::vec2 C2 = glm::vec2(L2.x + W2 + label_dot_gap, L2.y+ r);
+
+		draw_label(L2, t2);
+		draw_dot(C2, r, right_connected ? pink : gray);
 	}
 	GL_ERRORS();
 }

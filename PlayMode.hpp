@@ -21,11 +21,17 @@ struct PlayMode : Mode {
 	//---- mesh references ----
 	Scene scene;
 	Scene::Camera* camera = nullptr;
+	Scene::Camera* camera_left = nullptr;
+	Scene::Camera* camera_right = nullptr;
+	bool camera_chosen = false;
 
 	Scene::Transform* pan_1 = nullptr;
 	Scene::Transform* pan_2 = nullptr;
 	Scene::Transform* pancake_1 = nullptr;
 	Scene::Transform* pancake_2 = nullptr;
+
+	//---- animation ----
+	//FlipAnim flip1, flip2;
 
 	//----- game state -----
 

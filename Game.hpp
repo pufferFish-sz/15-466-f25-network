@@ -1,6 +1,8 @@
 #pragma once
-
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #include <string>
 #include <list>
@@ -24,12 +26,43 @@ struct Button {
 	bool pressed = false; //is the button pressed now
 };
 
+struct GameState {
+	bool for_left_side = false;
+	bool for_right_side = false;
+
+	glm::vec3 pancake1_pos = glm::vec3(0.0f);
+	glm::quat pancake1_rot = glm::quat(1, 0, 0, 0);
+	glm::quat pan1_rot = glm::quat(1, 0, 0, 0);
+
+	glm::vec3 pancake2_pos = glm::vec3(0.0f);
+	glm::quat pancake2_rot = glm::quat(1, 0, 0, 0);
+	glm::quat pan2_rot = glm::quat(1, 0, 0, 0);
+};
+
+struct FlipSim {
+	bool  active = false;
+	float t = 0.0f;
+	float T = 0.0f;
+	float g = 6.0f;
+	float vz0 = 4.0f;
+	float spin = glm::radians(180.f);
+
+	glm::vec3 pancake_pos = {};
+	glm::quat pancake_rot = glm::quat(1, 0, 0, 0);
+
+	glm::quat pan_rot = glm::quat(1, 0, 0, 0);
+
+	glm::vec3 start_pos = {};
+	glm::quat start_rot = glm::quat(1.0, 0, 0, 0);
+};
+
+
 //state of one player in the game:
 struct Player {
 	//player inputs (sent from client):
 	struct Controls {
-		Button left, right, up, down, jump;
-
+		//Button left, right, up, down, jump;
+		Button jump;
 		void send_controls_message(Connection *connection) const;
 
 		//returns 'false' if no message or not a controls message,
@@ -39,11 +72,19 @@ struct Player {
 	} controls;
 
 	//player state (sent from server):
-	glm::vec2 position = glm::vec2(0.0f, 0.0f);
-	glm::vec2 velocity = glm::vec2(0.0f, 0.0f);
+	/*glm::vec3 position;
+	glm::vec3 velocity;*/
 
 	glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
 	std::string name = "";
+
+	enum class Side : uint8_t { Left = 0, Right = 1 };
+	Side side = Side::Left;
+
+	uint8_t score = 0;
+	uint32_t space_downs = 0;
+
+	FlipSim flip;
 };
 
 struct Game {
@@ -59,19 +100,16 @@ struct Game {
 	//state update function:
 	void update(float elapsed);
 
+	GameState build_state() const;
+	GameState last_state;
+
 	//constants:
 	//the update rate on the server:
 	inline static constexpr float Tick = 1.0f / 30.0f;
-
-	//arena size:
-	inline static constexpr glm::vec2 ArenaMin = glm::vec2(-0.75f, -1.0f);
-	inline static constexpr glm::vec2 ArenaMax = glm::vec2( 0.75f,  1.0f);
-
-	//player constants:
-	inline static constexpr float PlayerRadius = 0.06f;
-	inline static constexpr float PlayerSpeed = 2.0f;
-	inline static constexpr float PlayerAccelHalflife = 0.25f;
-	
+	glm::vec3 pancake1_base_pos = glm::vec3(-1.205, -0.022, 0.750);
+	glm::vec3 pancake2_base_pos = glm::vec3(1.205, -0.022, 0.750);
+	glm::quat pancake1_base_rot = glm::quat(0.003f, 1.0, 0, 0);
+	glm::quat pancake2_base_rot = glm::quat(0.003f, 1.0, 0, 0);
 
 	//---- communication helpers ----
 
